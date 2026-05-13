@@ -476,8 +476,29 @@ def load_variables_payload(archive: zipfile.ZipFile) -> Dict[str, Dict[str, Any]
         # Legacy compatibility: file content is directly the variables dictionary.
         variables = payload
 
+    # Backward compatibility: older backups store variables as a list of
+    # objects containing a "name" field.
+    if isinstance(variables, list):
+        converted: Dict[str, Dict[str, Any]] = {}
+        for idx, item in enumerate(variables):
+            if not isinstance(item, dict):
+                raise ValueError(f"Invalid variables payload: expected object at index {idx}")
+
+            name = item.get("name")
+            if not isinstance(name, str) or not name:
+                raise ValueError(f"Invalid variables payload: missing variable name at index {idx}")
+
+            converted[name] = {
+                "value": item.get("value"),
+                "volatile": bool(item.get("volatile", False)),
+                "cyclic_id": item.get("cyclic_id"),
+                "description": item.get("description", ""),
+            }
+
+        variables = converted
+
     if not isinstance(variables, dict):
-        raise ValueError("Invalid variables payload: expected dictionary")
+        raise ValueError("Invalid variables payload: expected dictionary or list")
 
     return variables
 
